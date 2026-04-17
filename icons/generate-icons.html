@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html>
+<head><title>Icon Generator</title></head>
+<body>
+<canvas id="c192" width="192" height="192"></canvas>
+<canvas id="c512" width="512" height="512"></canvas>
+<script>
+function draw(id, size) {
+  const canvas = document.getElementById(id);
+  const ctx = canvas.getContext('2d');
+  const r = size * 0.15;
+
+  // background
+  ctx.fillStyle = '#4f46e5';
+  ctx.beginPath();
+  ctx.roundRect(0, 0, size, size, r);
+  ctx.fill();
+
+  // mic circle
+  const cx = size / 2;
+  const cy = size * 0.38;
+  const mw = size * 0.18;
+  const mh = size * 0.28;
+
+  ctx.fillStyle = '#ffffff';
+  ctx.beginPath();
+  ctx.ellipse(cx, cy, mw, mh, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // stand
+  ctx.strokeStyle = '#ffffff';
+  ctx.lineWidth = size * 0.05;
+  ctx.lineCap = 'round';
+
+  ctx.beginPath();
+  ctx.arc(cx, cy + size * 0.04, size * 0.26, Math.PI, 0);
+  ctx.stroke();
+
+  ctx.beginPath();
+  ctx.moveTo(cx, cy + size * 0.3);
+  ctx.lineTo(cx, cy + size * 0.38);
+  ctx.stroke();
+
+  ctx.beginPath();
+  ctx.moveTo(cx - size * 0.12, cy + size * 0.38);
+  ctx.lineTo(cx + size * 0.12, cy + size * 0.38);
+  ctx.stroke();
+}
+
+draw('c192', 192);
+draw('c512', 512);
+
+// download links
+['192','512'].forEach(s => {
+  const a = document.createElement('a');
+  a.href = document.getElementById('c'+s).toDataURL('image/png');
+  a.download = 'icon-'+s+'.png';
+  a.textContent = 'Download '+s;
+  document.body.appendChild(a);
+  document.body.appendChild(document.createElement('br'));
+});
+</script>
+</body>
+</html>
