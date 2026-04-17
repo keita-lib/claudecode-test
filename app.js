@@ -1,5 +1,6 @@
 import { initDB, getAllProjects, getAllTasks, saveProject, saveTask, deleteTask, deleteProject, exportData, importData } from './db.js';
 import { VoiceRecorder, parseDeadline, extractUrls, extractProject, isUndecided } from './voice.js';
+import { decomposeTask } from './gemini.js';
 
 const STAGES = [
   { key: 'todo',    label: '未着手',   badge: 'badge-stage-todo' },
@@ -209,6 +210,15 @@ function renderTaskItem(task) {
         <div class="detail-label">📝 備考</div>
         <textarea class="form-textarea memo-input" rows="2" placeholder="メモを入力...">${esc(task.memo || '')}</textarea>
       </div>
+      <div class="detail-section" data-subtask-section>
+        <div class="detail-label">📋 サブタスク（WBS）</div>
+        <ul class="subtask-list">
+          ${(task.subtasks || []).map((s, i) => subtaskItem(s, i)).join('')}
+        </ul>
+        ${settings.geminiApiKey
+          ? `<button class="detail-add-btn ai-decompose-btn" data-ai>✨ AIでWBS分解</button>`
+          : `<div style="font-size:12px;color:var(--text-muted);margin-top:4px">設定にGemini APIキーを入力するとAI分解が使えます</div>`}
+      </div>
       <div class="btn-row" style="margin-top:4px">
         <button class="btn btn-secondary" data-edit-task>編集</button>
         <button class="btn btn-danger" data-delete-task style="flex:0;padding:12px 16px">🗑</button>
@@ -302,7 +312,62 @@ function renderTaskItem(task) {
     renderTasks();
   });
 
+  // AI decompose
+  const aiBtn = item.querySelector('[data-ai]');
+  if (aiBtn) {
+    aiBtn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      aiBtn.textContent = '✨ AI分析中...';
+      aiBtn.disabled = true;
+      try {
+        const proj = projects.find(p => p.id === task.projectId);
+        const result = await decomposeTask({
+          apiKey: settings.geminiApiKey,
+          title: task.title,
+          projectName: proj?.name,
+          deadline: task.deadline,
+        });
+        task.subtasks = (result.subtasks || []).map((t, i) => ({ id: i, title: t, done: false }));
+        if (result.nextAction) task.nextAction = result.nextAction;
+        if (result.improvedTitle && result.improvedTitle !== task.title) {
+          if (confirm(`タイトル改善案:\n「${result.improvedTitle}」\n適用しますか？`)) {
+            task.title = result.improvedTitle;
+          }
+        }
+        await saveTask(task);
+        tasks = tasks.map(t => t.id === task.id ? task : t);
+        expandedTasks.add(task.id);
+        renderTasks();
+        showToast('AI分解が完了しました');
+      } catch (err) {
+        alert('AI分解エラー: ' + err.message);
+        aiBtn.textContent = '✨ AIでWBS分解';
+        aiBtn.disabled = false;
+      }
+    });
+  }
+
+  // subtask check toggle
+  item.querySelectorAll('[data-subtask-check]').forEach(cb => {
+    cb.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const idx = parseInt(cb.dataset.subtaskCheck);
+      task.subtasks[idx].done = !task.subtasks[idx].done;
+      await saveTask(task);
+      tasks = tasks.map(t => t.id === task.id ? task : t);
+      expandedTasks.add(task.id);
+      renderTasks();
+    });
+  });
+
   return item;
+}
+
+function subtaskItem(s, i) {
+  return `<li class="subtask-item ${s.done ? 'done' : ''}">
+    <div class="task-check ${s.done ? 'checked' : ''}" data-subtask-check="${i}"></div>
+    <span>${esc(s.title)}</span>
+  </li>`;
 }
 
 function refItem(ref, i) {
@@ -452,12 +517,14 @@ function setupEventListeners() {
     ss.classList.add('show');
     document.getElementById('settings-email').value = settings.email || '';
     document.getElementById('settings-days').value = settings.defaultDeadlineDays || 14;
+    document.getElementById('settings-gemini-key').value = settings.geminiApiKey || '';
   });
 
   document.getElementById('settings-save').addEventListener('click', () => {
     saveSettings({
       email: document.getElementById('settings-email').value.trim(),
       defaultDeadlineDays: parseInt(document.getElementById('settings-days').value) || 14,
+      geminiApiKey: document.getElementById('settings-gemini-key').value.trim(),
     });
     document.getElementById('settings-screen').classList.remove('show');
     document.getElementById('task-view').style.display = '';
