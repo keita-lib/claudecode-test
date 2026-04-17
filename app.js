@@ -318,6 +318,7 @@ function refItem(ref, i) {
 let recorder;
 let interimText = '';
 let finalText = '';
+let isProvisional = false;
 
 function setupVoice() {
   recorder = new VoiceRecorder({
@@ -376,13 +377,20 @@ function openVoiceDialog(text) {
   const deadlineSection = document.getElementById('vd-deadline-section');
   const undecidedSection = document.getElementById('vd-undecided-section');
 
+  // reset manual date input from previous dialog open
+  const manualDate = document.getElementById('vd-manual-date');
+  if (manualDate) { manualDate.value = ''; manualDate.style.display = 'none'; }
+
   if (deadline) {
     deadlineInput.value = toInputDate(deadline);
     deadlineSection.style.display = 'block';
     undecidedSection.style.display = 'none';
+    isProvisional = false;
   } else {
+    deadlineInput.value = '';
     deadlineSection.style.display = 'none';
     undecidedSection.style.display = 'block';
+    isProvisional = true;
     setSuggestedDeadline();
   }
 
@@ -423,6 +431,7 @@ function setupEventListeners() {
     document.getElementById('vd-deadline').value = date;
     document.getElementById('vd-deadline-section').style.display = 'block';
     document.getElementById('vd-undecided-section').style.display = 'none';
+    isProvisional = true;
   });
 
   document.getElementById('vd-save').addEventListener('click', saveVoiceTask);
@@ -515,15 +524,11 @@ async function saveVoiceTask() {
     renderTabs();
   }
 
-  const provisional = document.getElementById('vd-undecided-section').style.display !== 'none'
-    ? true
-    : false;
-
   const task = {
     title,
     projectId,
     deadline: deadlineVal,
-    provisional,
+    provisional: isProvisional,
     stage: 'todo',
     refs: [...(window._pendingUrls || [])],
     nextAction: '',
@@ -536,9 +541,11 @@ async function saveVoiceTask() {
   tasks.push(task);
 
   if (projectId) expandedProjects.add(projectId);
+  else expandedProjects.add(null); // 未分類も展開
 
   renderTasks();
   document.getElementById('voice-overlay').classList.remove('open');
+  showToast(`「${title}」を登録しました`);
 }
 
 // ─── Edit dialog ─────────────────────────────────
@@ -629,4 +636,18 @@ function formatDate(d) {
 
 function toInputDate(d) {
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+
+function showToast(msg) {
+  const t = document.createElement('div');
+  t.textContent = msg;
+  Object.assign(t.style, {
+    position: 'fixed', bottom: '100px', left: '50%', transform: 'translateX(-50%)',
+    background: '#10b981', color: '#fff', padding: '10px 20px',
+    borderRadius: '999px', fontSize: '14px', fontWeight: '600',
+    zIndex: '9999', whiteSpace: 'nowrap', boxShadow: '0 4px 12px rgba(0,0,0,.3)',
+    transition: 'opacity .4s',
+  });
+  document.body.appendChild(t);
+  setTimeout(() => { t.style.opacity = '0'; setTimeout(() => t.remove(), 400); }, 2000);
 }

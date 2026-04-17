@@ -116,13 +116,13 @@
     </div>
 
     <!-- Deadline (detected) -->
-    <div id="vd-deadline-section" class="form-group">
+    <div id="vd-deadline-section" class="form-group" style="display:none">
       <label>期限</label>
       <input class="form-input" id="vd-deadline" type="date">
     </div>
 
     <!-- Undecided deadline -->
-    <div id="vd-undecided-section" class="form-group">
+    <div id="vd-undecided-section" class="form-group" style="display:none">
       <label>期限が未設定です。いつまでにやりますか？</label>
       <div class="suggestion-box">
         <small>システムからの提案</small>
@@ -178,7 +178,7 @@
   </div>
 </div>
 
-<script type="module" src="/app.js"></script>
+<script type="module" src="./app.js"></script>
 <script>
   // Manual date button in voice dialog
   document.addEventListener('DOMContentLoaded', () => {
