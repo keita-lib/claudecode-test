@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#4f46e5">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="タスク管理">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="apple-touch-icon" href="/icons/icon-192.png">
+  <link rel="stylesheet" href="/style.css">
+  <title>タスク管理</title>
+</head>
+<body>
+<div id="app">
+
+  <!-- Storage warning -->
+  <div id="storage-warning">
+    ⚠️ データの永続化が許可されていません。定期的にエクスポートしてください。
+  </div>
+
+  <!-- Header -->
+  <header>
+    <h1>📋 タスク管理</h1>
+    <button class="icon-btn" id="btn-email" title="メール送信">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
+        <polyline points="22,6 12,13 2,6"/>
+      </svg>
+    </button>
+    <button class="icon-btn" id="btn-export" title="エクスポート">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
+        <polyline points="7,10 12,15 17,10"/>
+        <line x1="12" y1="15" x2="12" y2="3"/>
+      </svg>
+    </button>
+    <button class="icon-btn" id="btn-settings" title="設定">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="12" cy="12" r="3"/>
+        <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/>
+      </svg>
+    </button>
+  </header>
+
+  <!-- Main task view -->
+  <div id="task-view" style="display:flex;flex-direction:column;flex:1;overflow:hidden">
+    <!-- Tabs -->
+    <div id="tabs"></div>
+    <!-- Task list -->
+    <div id="task-list"></div>
+  </div>
+
+  <!-- Settings screen -->
+  <div id="settings-screen">
+    <h2>⚙️ 設定</h2>
+    <div class="form-group">
+      <label>送信先メールアドレス</label>
+      <input class="form-input" id="settings-email" type="email" placeholder="company@example.com">
+    </div>
+    <div class="form-group">
+      <label>期限「未定」時のデフォルト日数</label>
+      <input class="form-input" id="settings-days" type="number" min="1" max="365" value="14">
+    </div>
+    <div class="form-group">
+      <label>データバックアップ</label>
+      <button class="btn btn-secondary" id="settings-import-btn">JSONをインポート</button>
+      <input type="file" id="import-file" accept=".json" style="display:none">
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-secondary" id="settings-back">戻る</button>
+      <button class="btn btn-primary" id="settings-save">保存</button>
+    </div>
+  </div>
+
+  <!-- FAB mic button -->
+  <button id="mic-fab" aria-label="音声入力">
+    <svg viewBox="0 0 24 24" fill="currentColor">
+      <path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/>
+      <path d="M19 10v2a7 7 0 01-14 0v-2H3v2a9 9 0 008 8.94V23h2v-2.06A9 9 0 0021 12v-2h-2z"/>
+    </svg>
+  </button>
+
+</div>
+
+<!-- ─── Voice input dialog ─────────────────────── -->
+<div id="voice-overlay" class="overlay">
+  <div class="sheet">
+    <h2>🎤 タスクを登録</h2>
+
+    <!-- Wave animation -->
+    <div id="voice-wave">
+      <div class="wave-bar"></div>
+      <div class="wave-bar"></div>
+      <div class="wave-bar"></div>
+      <div class="wave-bar"></div>
+      <div class="wave-bar"></div>
+    </div>
+
+    <!-- Recognized text (interim) -->
+    <div id="interim-display" class="interim-text">認識中...</div>
+
+    <div class="form-group">
+      <label>タスク内容</label>
+      <input class="form-input" id="vd-text" type="text" placeholder="タスク内容">
+    </div>
+
+    <div class="form-group">
+      <label>案件</label>
+      <select class="form-select" id="vd-project">
+        <option value="">未分類</option>
+      </select>
+      <input class="form-input" id="vd-new-project" type="text" placeholder="新しい案件名（任意）" style="margin-top:6px">
+    </div>
+
+    <!-- Deadline (detected) -->
+    <div id="vd-deadline-section" class="form-group">
+      <label>期限</label>
+      <input class="form-input" id="vd-deadline" type="date">
+    </div>
+
+    <!-- Undecided deadline -->
+    <div id="vd-undecided-section" class="form-group">
+      <label>期限が未設定です。いつまでにやりますか？</label>
+      <div class="suggestion-box">
+        <small>システムからの提案</small>
+        <div id="vd-suggested"></div>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-primary" id="vd-use-suggested">この日程で登録（仮）</button>
+        <button class="btn btn-secondary" id="vd-manual-date-btn">日付を選ぶ</button>
+      </div>
+      <input class="form-input" id="vd-manual-date" type="date" style="display:none;margin-top:8px">
+      <input type="hidden" id="vd-suggested-date">
+    </div>
+
+    <!-- Detected URLs -->
+    <div id="vd-urls"></div>
+
+    <div class="btn-row">
+      <button class="btn btn-secondary" id="vd-cancel">キャンセル</button>
+      <button class="btn btn-primary" id="vd-save">登録</button>
+    </div>
+  </div>
+</div>
+
+<!-- ─── Edit dialog ────────────────────────────── -->
+<div id="edit-overlay" class="overlay">
+  <div class="sheet">
+    <h2>✏️ タスクを編集</h2>
+    <input type="hidden" id="ed-id">
+    <div class="form-group">
+      <label>タスク内容</label>
+      <input class="form-input" id="ed-title" type="text">
+    </div>
+    <div class="form-group">
+      <label>案件</label>
+      <select class="form-select" id="ed-project"></select>
+    </div>
+    <div class="form-group">
+      <label>期限</label>
+      <input class="form-input" id="ed-deadline" type="date">
+    </div>
+    <div class="form-group">
+      <label>次のアクション</label>
+      <input class="form-input" id="ed-next-action" type="text" placeholder="例: 先方に電話する">
+    </div>
+    <div class="form-group">
+      <label>備考</label>
+      <textarea class="form-textarea" id="ed-memo" rows="3"></textarea>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-secondary" id="ed-cancel">キャンセル</button>
+      <button class="btn btn-primary" id="ed-save">保存</button>
+    </div>
+  </div>
+</div>
+
+<script type="module" src="/app.js"></script>
+<script>
+  // Manual date button in voice dialog
+  document.addEventListener('DOMContentLoaded', () => {
+    const btn = document.getElementById('vd-manual-date-btn');
+    const input = document.getElementById('vd-manual-date');
+    const deadlineInput = document.getElementById('vd-deadline');
+    const section = document.getElementById('vd-deadline-section');
+    const undecided = document.getElementById('vd-undecided-section');
+
+    if (btn) {
+      btn.addEventListener('click', () => {
+        input.style.display = 'block';
+        input.focus();
+      });
+      input.addEventListener('change', () => {
+        if (input.value) {
+          deadlineInput.value = input.value;
+          section.style.display = 'block';
+          undecided.style.display = 'none';
+        }
+      });
+    }
+
+    // Populate project select in voice dialog
+    document.getElementById('vd-project').addEventListener('focus', () => {
+      const sel = document.getElementById('vd-project');
+      // Projects are populated in app.js openVoiceDialog
+    });
+  });
+</script>
+</body>
+</html>
