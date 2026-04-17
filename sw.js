@@ -1,14 +1,15 @@
 const CACHE = 'taskmanager-v1';
+const BASE = self.location.pathname.replace(/sw\.js$/, '');
 const ASSETS = [
-  '/',
-  '/index.html',
-  '/style.css',
-  '/app.js',
-  '/db.js',
-  '/voice.js',
-  '/manifest.json',
-  '/icons/icon-192.png',
-  '/icons/icon-512.png',
+  BASE,
+  BASE + 'index.html',
+  BASE + 'style.css',
+  BASE + 'app.js',
+  BASE + 'db.js',
+  BASE + 'voice.js',
+  BASE + 'manifest.json',
+  BASE + 'icons/icon-192.png',
+  BASE + 'icons/icon-512.png',
 ];
 
 self.addEventListener('install', (e) => {

@@ -2,7 +2,7 @@
   "name": "タスク管理",
   "short_name": "タスク管理",
   "description": "音声でタスクを登録・管理するPWAアプリ",
-  "start_url": "/",
+  "start_url": ".",
   "display": "standalone",
   "background_color": "#1a1a2e",
   "theme_color": "#4f46e5",
