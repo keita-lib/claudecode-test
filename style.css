@@ -283,12 +283,19 @@ header h1 { font-size: 16px; font-weight: 700; flex: 1; }
 .empty-icon { font-size: 48px; margin-bottom: 12px; }
 .empty p { font-size: 14px; line-height: 1.6; }
 
-/* ─── FAB mic button ─────────────────────────── */
-#mic-fab {
+/* ─── FAB area ───────────────────────────────── */
+#fab-area {
   position: fixed;
   bottom: 24px;
   left: 50%;
   transform: translateX(-50%);
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  z-index: 100;
+}
+
+#mic-fab {
   width: 68px; height: 68px;
   border-radius: 50%;
   background: var(--primary);
@@ -298,16 +305,29 @@ header h1 { font-size: 16px; font-weight: 700; flex: 1; }
   display: flex; align-items: center; justify-content: center;
   box-shadow: 0 4px 24px rgba(79, 70, 229, 0.6);
   transition: background .15s, transform .1s;
-  z-index: 100;
 }
 #mic-fab:hover { background: #4338ca; }
-#mic-fab:active { transform: translateX(-50%) scale(0.94); }
+#mic-fab:active { transform: scale(0.94); }
 #mic-fab.recording {
   background: var(--danger);
   animation: pulse 1s infinite;
   box-shadow: 0 4px 24px rgba(239, 68, 68, 0.6);
 }
 #mic-fab svg { width: 28px; height: 28px; }
+
+#add-fab {
+  width: 52px; height: 52px;
+  border-radius: 50%;
+  background: var(--surface2);
+  border: 2px solid var(--border);
+  color: var(--text);
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 2px 12px rgba(0,0,0,.3);
+  transition: background .15s;
+}
+#add-fab:hover { background: var(--border); }
+#add-fab svg { width: 22px; height: 22px; }
 
 @keyframes pulse {
   0%, 100% { box-shadow: 0 4px 24px rgba(239, 68, 68, 0.6); }

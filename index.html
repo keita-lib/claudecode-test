@@ -8,9 +8,9 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="タスク管理">
-  <link rel="manifest" href="/manifest.json">
-  <link rel="apple-touch-icon" href="/icons/icon-192.png">
-  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="./manifest.json">
+  <link rel="apple-touch-icon" href="./icons/icon-192.png">
+  <link rel="stylesheet" href="./style.css">
   <title>タスク管理</title>
 </head>
 <body>
@@ -47,9 +47,7 @@
 
   <!-- Main task view -->
   <div id="task-view" style="display:flex;flex-direction:column;flex:1;overflow:hidden">
-    <!-- Tabs -->
     <div id="tabs"></div>
-    <!-- Task list -->
     <div id="task-list"></div>
   </div>
 
@@ -65,10 +63,10 @@
       <input class="form-input" id="settings-days" type="number" min="1" max="365" value="14">
     </div>
     <div class="form-group">
-      <label>Gemini APIキー <span style="font-size:11px;color:var(--text-muted)">（AI WBS分解に使用・無料）</span></label>
+      <label>Gemini APIキー <span style="font-size:11px;color:var(--text-muted)">（AI WBS分解・無料）</span></label>
       <input class="form-input" id="settings-gemini-key" type="password" placeholder="AIzaSy...">
       <div style="font-size:11px;color:var(--text-muted);margin-top:4px">
-        <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener" style="color:var(--primary-light)">aistudio.google.com</a> で無料取得できます
+        <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener" style="color:var(--primary-light)">aistudio.google.com</a> で無料取得
       </div>
     </div>
     <div class="form-group">
@@ -82,139 +80,77 @@
     </div>
   </div>
 
-  <!-- FAB mic button -->
-  <button id="mic-fab" aria-label="音声入力">
-    <svg viewBox="0 0 24 24" fill="currentColor">
-      <path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/>
-      <path d="M19 10v2a7 7 0 01-14 0v-2H3v2a9 9 0 008 8.94V23h2v-2.06A9 9 0 0021 12v-2h-2z"/>
-    </svg>
-  </button>
-
-</div>
-
-<!-- ─── Voice input dialog ─────────────────────── -->
-<div id="voice-overlay" class="overlay">
-  <div class="sheet">
-    <h2>🎤 タスクを登録</h2>
-
-    <!-- Wave animation -->
-    <div id="voice-wave">
-      <div class="wave-bar"></div>
-      <div class="wave-bar"></div>
-      <div class="wave-bar"></div>
-      <div class="wave-bar"></div>
-      <div class="wave-bar"></div>
-    </div>
-
-    <!-- Recognized text (interim) -->
-    <div id="interim-display" class="interim-text">認識中...</div>
-
-    <div class="form-group">
-      <label>タスク内容</label>
-      <input class="form-input" id="vd-text" type="text" placeholder="タスク内容">
-    </div>
-
-    <div class="form-group">
-      <label>案件</label>
-      <select class="form-select" id="vd-project">
-        <option value="">未分類</option>
-      </select>
-      <input class="form-input" id="vd-new-project" type="text" placeholder="新しい案件名（任意）" style="margin-top:6px">
-    </div>
-
-    <!-- Deadline (detected) -->
-    <div id="vd-deadline-section" class="form-group" style="display:none">
-      <label>期限</label>
-      <input class="form-input" id="vd-deadline" type="date">
-    </div>
-
-    <!-- Undecided deadline -->
-    <div id="vd-undecided-section" class="form-group" style="display:none">
-      <label>期限が未設定です。いつまでにやりますか？</label>
-      <div class="suggestion-box">
-        <small>システムからの提案</small>
-        <div id="vd-suggested"></div>
-      </div>
-      <div class="btn-row">
-        <button class="btn btn-primary" id="vd-use-suggested">この日程で登録（仮）</button>
-        <button class="btn btn-secondary" id="vd-manual-date-btn">日付を選ぶ</button>
-      </div>
-      <input class="form-input" id="vd-manual-date" type="date" style="display:none;margin-top:8px">
-      <input type="hidden" id="vd-suggested-date">
-    </div>
-
-    <!-- Detected URLs -->
-    <div id="vd-urls"></div>
-
-    <div class="btn-row">
-      <button class="btn btn-secondary" id="vd-cancel">キャンセル</button>
-      <button class="btn btn-primary" id="vd-save">登録</button>
-    </div>
+  <!-- FAB buttons -->
+  <div id="fab-area">
+    <button id="add-fab" aria-label="手動入力">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+        <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+      </svg>
+    </button>
+    <button id="mic-fab" aria-label="音声入力">
+      <svg viewBox="0 0 24 24" fill="currentColor">
+        <path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/>
+        <path d="M19 10v2a7 7 0 01-14 0v-2H3v2a9 9 0 008 8.94V23h2v-2.06A9 9 0 0021 12v-2h-2z"/>
+      </svg>
+    </button>
   </div>
+
 </div>
 
-<!-- ─── Edit dialog ────────────────────────────── -->
-<div id="edit-overlay" class="overlay">
+<!-- ─── Task dialog (作成・編集 共通) ──────────── -->
+<div id="task-overlay" class="overlay">
   <div class="sheet">
-    <h2>✏️ タスクを編集</h2>
-    <input type="hidden" id="ed-id">
-    <div class="form-group">
-      <label>タスク内容</label>
-      <input class="form-input" id="ed-title" type="text">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px">
+      <h2 id="task-dialog-title" style="margin:0;flex:1">📝 タスクを登録</h2>
+      <!-- 録音中インジケーター -->
+      <div id="voice-wave">
+        <div class="wave-bar"></div>
+        <div class="wave-bar"></div>
+        <div class="wave-bar"></div>
+        <div class="wave-bar"></div>
+        <div class="wave-bar"></div>
+      </div>
     </div>
+
+    <input type="hidden" id="td-id">
+
+    <div class="form-group">
+      <label>タスク内容 <span style="color:var(--danger)">*</span></label>
+      <textarea class="form-input form-textarea" id="td-title" rows="2" placeholder="例：A社の見積書を作成する"></textarea>
+    </div>
+
     <div class="form-group">
       <label>案件</label>
-      <select class="form-select" id="ed-project"></select>
+      <select class="form-select" id="td-project"></select>
+      <input class="form-input" id="td-new-project" type="text" placeholder="＋ 新しい案件名" style="margin-top:6px">
     </div>
+
     <div class="form-group">
-      <label>期限</label>
-      <input class="form-input" id="ed-deadline" type="date">
+      <label>期限 <span style="color:var(--danger)">*</span></label>
+      <div style="display:flex;gap:8px;align-items:center">
+        <input class="form-input" id="td-deadline" type="date" style="flex:1">
+        <button id="td-undecided" class="btn btn-secondary" style="flex:0;white-space:nowrap;padding:10px 12px;font-size:13px">未定（仮）</button>
+      </div>
+      <div id="td-provisional-note" style="display:none;font-size:12px;color:var(--primary-light);margin-top:4px">📌 仮の期限として登録されます</div>
     </div>
+
     <div class="form-group">
       <label>次のアクション</label>
-      <input class="form-input" id="ed-next-action" type="text" placeholder="例: 先方に電話する">
+      <input class="form-input" id="td-next-action" type="text" placeholder="例：先方にメールで確認する">
     </div>
+
     <div class="form-group">
-      <label>備考</label>
-      <textarea class="form-textarea" id="ed-memo" rows="3"></textarea>
+      <label>備考・URL</label>
+      <textarea class="form-input form-textarea" id="td-memo" rows="2" placeholder="URLやメモを入力…"></textarea>
     </div>
+
     <div class="btn-row">
-      <button class="btn btn-secondary" id="ed-cancel">キャンセル</button>
-      <button class="btn btn-primary" id="ed-save">保存</button>
+      <button class="btn btn-secondary" id="td-cancel">キャンセル</button>
+      <button class="btn btn-primary" id="td-save">登録</button>
     </div>
   </div>
 </div>
 
 <script type="module" src="./app.js"></script>
-<script>
-  // Manual date button in voice dialog
-  document.addEventListener('DOMContentLoaded', () => {
-    const btn = document.getElementById('vd-manual-date-btn');
-    const input = document.getElementById('vd-manual-date');
-    const deadlineInput = document.getElementById('vd-deadline');
-    const section = document.getElementById('vd-deadline-section');
-    const undecided = document.getElementById('vd-undecided-section');
-
-    if (btn) {
-      btn.addEventListener('click', () => {
-        input.style.display = 'block';
-        input.focus();
-      });
-      input.addEventListener('change', () => {
-        if (input.value) {
-          deadlineInput.value = input.value;
-          section.style.display = 'block';
-          undecided.style.display = 'none';
-        }
-      });
-    }
-
-    // Populate project select in voice dialog
-    document.getElementById('vd-project').addEventListener('focus', () => {
-      const sel = document.getElementById('vd-project');
-      // Projects are populated in app.js openVoiceDialog
-    });
-  });
-</script>
 </body>
 </html>

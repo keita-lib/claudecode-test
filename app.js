@@ -1,5 +1,5 @@
-import { initDB, getAllProjects, getAllTasks, saveProject, saveTask, deleteTask, deleteProject, exportData, importData } from './db.js';
-import { VoiceRecorder, parseDeadline, extractUrls, extractProject, isUndecided } from './voice.js';
+import { initDB, getAllProjects, getAllTasks, saveProject, saveTask, deleteTask, exportData, importData } from './db.js';
+import { VoiceRecorder, parseDeadline, extractUrls, extractProject } from './voice.js';
 import { decomposeTask } from './gemini.js';
 
 const STAGES = [
@@ -36,12 +36,13 @@ async function init() {
   }
 }
 
+document.addEventListener('DOMContentLoaded', () => init().catch(console.error));
+
 // ─── Settings ────────────────────────────────────
 
 function loadSettings() {
-  try {
-    return JSON.parse(localStorage.getItem('settings') || '{}');
-  } catch { return {}; }
+  try { return JSON.parse(localStorage.getItem('settings') || '{}'); }
+  catch { return {}; }
 }
 
 function saveSettings(s) {
@@ -54,13 +55,8 @@ function saveSettings(s) {
 function renderTabs() {
   const tabs = document.getElementById('tabs');
   tabs.innerHTML = '';
-
-  const allBtn = makeTab('all', '全件');
-  tabs.appendChild(allBtn);
-
-  for (const p of projects) {
-    tabs.appendChild(makeTab(String(p.id), p.name));
-  }
+  tabs.appendChild(makeTab('all', '全件'));
+  for (const p of projects) tabs.appendChild(makeTab(String(p.id), p.name));
 }
 
 function makeTab(id, label) {
@@ -82,97 +78,77 @@ function renderTasks() {
   const list = document.getElementById('task-list');
   list.innerHTML = '';
 
-  const filteredProjects = currentTab === 'all'
-    ? projects
-    : projects.filter(p => String(p.id) === currentTab);
-
+  const filteredProjects = currentTab === 'all' ? projects : projects.filter(p => String(p.id) === currentTab);
   let anyTask = false;
 
   for (const proj of filteredProjects) {
     const projTasks = tasks.filter(t => t.projectId === proj.id);
-    if (projTasks.length === 0 && currentTab !== 'all') continue;
+    if (!projTasks.length) continue;
     anyTask = true;
-
-    const group = document.createElement('div');
-    group.className = 'project-group';
-
-    const isOpen = expandedProjects.has(proj.id);
-    const header = document.createElement('div');
-    header.className = 'project-header' + (isOpen ? ' open' : '');
-    header.innerHTML = `
-      <svg class="project-chevron" viewBox="0 0 20 20" fill="currentColor" width="16" height="16">
-        <path fill-rule="evenodd" d="M7.293 4.707a1 1 0 011.414 0l5 5a1 1 0 010 1.414l-5 5a1 1 0 01-1.414-1.414L11.586 10 7.293 5.707a1 1 0 010-1.414z"/>
-      </svg>
-      <span class="project-name">📁 ${esc(proj.name)}</span>
-      <span class="project-count">${projTasks.filter(t => t.stage !== 'done').length}件</span>
-    `;
-
-    const items = document.createElement('div');
-    items.className = 'task-items';
-    items.style.display = isOpen ? 'block' : 'none';
-
-    header.addEventListener('click', () => {
-      const open = !expandedProjects.has(proj.id);
-      open ? expandedProjects.add(proj.id) : expandedProjects.delete(proj.id);
-      header.classList.toggle('open', open);
-      items.style.display = open ? 'block' : 'none';
-    });
-
-    for (const task of projTasks) {
-      items.appendChild(renderTaskItem(task));
-    }
-
-    group.appendChild(header);
-    group.appendChild(items);
-    list.appendChild(group);
+    list.appendChild(renderProjectGroup(proj, projTasks));
   }
 
-  // Tasks with no project
-  const orphans = tasks.filter(t => !t.projectId && (currentTab === 'all'));
+  const orphans = tasks.filter(t => !t.projectId && currentTab === 'all');
   if (orphans.length) {
     anyTask = true;
-    const group = document.createElement('div');
-    group.className = 'project-group';
-    const header = document.createElement('div');
-    header.className = 'project-header open';
-    header.innerHTML = `
-      <svg class="project-chevron" style="transform:rotate(90deg)" viewBox="0 0 20 20" fill="currentColor" width="16" height="16">
-        <path fill-rule="evenodd" d="M7.293 4.707a1 1 0 011.414 0l5 5a1 1 0 010 1.414l-5 5a1 1 0 01-1.414-1.414L11.586 10 7.293 5.707a1 1 0 010-1.414z"/>
-      </svg>
-      <span class="project-name">📋 未分類</span>
-      <span class="project-count">${orphans.length}件</span>
-    `;
-    const items = document.createElement('div');
-    items.className = 'task-items';
-    for (const task of orphans) items.appendChild(renderTaskItem(task));
-    group.appendChild(header);
-    group.appendChild(items);
-    list.appendChild(group);
+    list.appendChild(renderProjectGroup(null, orphans));
   }
 
   if (!anyTask) {
-    list.innerHTML = `
-      <div class="empty">
-        <div class="empty-icon">🎤</div>
-        <p>マイクボタンを押して<br>タスクを話しかけてください</p>
-      </div>`;
+    list.innerHTML = `<div class="empty">
+      <div class="empty-icon">🎤</div>
+      <p>マイクボタンで話しかけるか<br>＋ボタンでタスクを追加してください</p>
+    </div>`;
   }
+}
+
+function renderProjectGroup(proj, projTasks) {
+  const group = document.createElement('div');
+  group.className = 'project-group';
+
+  const projId = proj ? proj.id : 0;
+  const isOpen = expandedProjects.has(projId);
+
+  const header = document.createElement('div');
+  header.className = 'project-header' + (isOpen ? ' open' : '');
+  header.innerHTML = `
+    <svg class="project-chevron" viewBox="0 0 20 20" fill="currentColor" width="16" height="16">
+      <path fill-rule="evenodd" d="M7.293 4.707a1 1 0 011.414 0l5 5a1 1 0 010 1.414l-5 5a1 1 0 01-1.414-1.414L11.586 10 7.293 5.707a1 1 0 010-1.414z"/>
+    </svg>
+    <span class="project-name">${proj ? '📁 ' + esc(proj.name) : '📋 未分類'}</span>
+    <span class="project-count">${projTasks.filter(t => t.stage !== 'done').length}件</span>
+  `;
+
+  const items = document.createElement('div');
+  items.className = 'task-items';
+  items.style.display = isOpen ? 'block' : 'none';
+
+  header.addEventListener('click', () => {
+    const open = !expandedProjects.has(projId);
+    open ? expandedProjects.add(projId) : expandedProjects.delete(projId);
+    header.classList.toggle('open', open);
+    items.style.display = open ? 'block' : 'none';
+  });
+
+  for (const task of projTasks) items.appendChild(renderTaskItem(task));
+  group.appendChild(header);
+  group.appendChild(items);
+  return group;
 }
 
 function deadlineBadge(task) {
   if (!task.deadline) return null;
-  const today = new Date(); today.setHours(0,0,0,0);
+  const today = new Date(); today.setHours(0, 0, 0, 0);
   const d = new Date(task.deadline);
   const diff = Math.round((d - today) / 86400000);
-  if (diff < 0) return { cls: 'badge-overdue', label: `${Math.abs(diff)}日超過` };
-  if (diff <= 3) return { cls: 'badge-soon',   label: `${diff}日後` };
+  if (diff < 0)  return { cls: 'badge-overdue', label: `${Math.abs(diff)}日超過` };
+  if (diff <= 3) return { cls: 'badge-soon',    label: diff === 0 ? '今日' : `${diff}日後` };
   return { cls: 'badge-ok', label: formatDate(d) };
 }
 
 function renderTaskItem(task) {
   const item = document.createElement('div');
   item.className = 'task-item' + (task.stage === 'done' ? ' done' : '');
-  item.dataset.id = task.id;
 
   const stage = STAGES.find(s => s.key === (task.stage || 'todo'));
   const db = deadlineBadge(task);
@@ -196,37 +172,28 @@ function renderTaskItem(task) {
         </div>
       </div>
       <div class="detail-section">
-        <div class="detail-label">次のアクション</div>
-        <input class="form-input next-action-input" type="text" value="${esc(task.nextAction || '')}" placeholder="例: 先方にメールで確認する">
-      </div>
-      <div class="detail-section">
-        <div class="detail-label">📎 関連資料・URL</div>
-        <ul class="ref-list" data-refs>
-          ${(task.refs || []).map((r, i) => refItem(r, i)).join('')}
-        </ul>
-        <button class="detail-add-btn" data-add-url>+ URLを追加</button>
-      </div>
-      <div class="detail-section">
-        <div class="detail-label">📝 備考</div>
-        <textarea class="form-textarea memo-input" rows="2" placeholder="メモを入力...">${esc(task.memo || '')}</textarea>
-      </div>
-      <div class="detail-section" data-subtask-section>
         <div class="detail-label">📋 サブタスク（WBS）</div>
         <ul class="subtask-list">
           ${(task.subtasks || []).map((s, i) => subtaskItem(s, i)).join('')}
         </ul>
         ${settings.geminiApiKey
-          ? `<button class="detail-add-btn ai-decompose-btn" data-ai>✨ AIでWBS分解</button>`
-          : `<div style="font-size:12px;color:var(--text-muted);margin-top:4px">設定にGemini APIキーを入力するとAI分解が使えます</div>`}
+          ? `<button class="detail-add-btn" data-ai>✨ AIでWBS分解</button>`
+          : `<div style="font-size:12px;color:var(--text-muted);margin-top:2px">設定にGemini APIキーを入れるとAI分解が使えます</div>`}
       </div>
-      <div class="btn-row" style="margin-top:4px">
-        <button class="btn btn-secondary" data-edit-task>編集</button>
+      <div class="detail-section">
+        <div class="detail-label">📎 関連資料・URL</div>
+        <ul class="ref-list">
+          ${(task.refs || []).map((r, i) => refItem(r, i)).join('')}
+        </ul>
+        <button class="detail-add-btn" data-add-url>+ URLを追加</button>
+      </div>
+      <div class="btn-row" style="margin-top:8px">
+        <button class="btn btn-secondary" data-edit-task>✏️ 編集</button>
         <button class="btn btn-danger" data-delete-task style="flex:0;padding:12px 16px">🗑</button>
       </div>
     </div>
   `;
 
-  // toggle detail panel
   item.querySelector('.task-row1').addEventListener('click', (e) => {
     if (e.target.closest('[data-check]')) return;
     const open = !expandedTasks.has(task.id);
@@ -234,7 +201,6 @@ function renderTaskItem(task) {
     item.querySelector('.task-detail').classList.toggle('open', open);
   });
 
-  // check toggle
   item.querySelector('[data-check]').addEventListener('click', async (e) => {
     e.stopPropagation();
     task.stage = task.stage === 'done' ? 'todo' : 'done';
@@ -243,7 +209,6 @@ function renderTaskItem(task) {
     renderTasks();
   });
 
-  // stage buttons
   item.querySelectorAll('[data-stage]').forEach(btn => {
     btn.addEventListener('click', async (e) => {
       e.stopPropagation();
@@ -254,25 +219,6 @@ function renderTaskItem(task) {
     });
   });
 
-  // next action input
-  const naInput = item.querySelector('.next-action-input');
-  naInput.addEventListener('change', async () => {
-    task.nextAction = naInput.value.trim();
-    await saveTask(task);
-    tasks = tasks.map(t => t.id === task.id ? task : t);
-  });
-  naInput.addEventListener('click', e => e.stopPropagation());
-
-  // memo
-  const memoInput = item.querySelector('.memo-input');
-  memoInput.addEventListener('change', async () => {
-    task.memo = memoInput.value.trim();
-    await saveTask(task);
-    tasks = tasks.map(t => t.id === task.id ? task : t);
-  });
-  memoInput.addEventListener('click', e => e.stopPropagation());
-
-  // add URL
   item.querySelector('[data-add-url]').addEventListener('click', async (e) => {
     e.stopPropagation();
     const url = prompt('URLまたはファイル名を入力:');
@@ -281,29 +227,26 @@ function renderTaskItem(task) {
     task.refs.push(url.trim());
     await saveTask(task);
     tasks = tasks.map(t => t.id === task.id ? task : t);
-    renderTasks();
     expandedTasks.add(task.id);
+    renderTasks();
   });
 
-  // delete ref
   item.querySelectorAll('[data-del-ref]').forEach(btn => {
     btn.addEventListener('click', async (e) => {
       e.stopPropagation();
       task.refs.splice(parseInt(btn.dataset.delRef), 1);
       await saveTask(task);
       tasks = tasks.map(t => t.id === task.id ? task : t);
-      renderTasks();
       expandedTasks.add(task.id);
+      renderTasks();
     });
   });
 
-  // edit
   item.querySelector('[data-edit-task]').addEventListener('click', (e) => {
     e.stopPropagation();
-    openEditDialog(task);
+    openTaskDialog(task);
   });
 
-  // delete
   item.querySelector('[data-delete-task]').addEventListener('click', async (e) => {
     e.stopPropagation();
     if (!confirm(`「${task.title}」を削除しますか？`)) return;
@@ -312,7 +255,6 @@ function renderTaskItem(task) {
     renderTasks();
   });
 
-  // AI decompose
   const aiBtn = item.querySelector('[data-ai]');
   if (aiBtn) {
     aiBtn.addEventListener('click', async (e) => {
@@ -321,18 +263,11 @@ function renderTaskItem(task) {
       aiBtn.disabled = true;
       try {
         const proj = projects.find(p => p.id === task.projectId);
-        const result = await decomposeTask({
-          apiKey: settings.geminiApiKey,
-          title: task.title,
-          projectName: proj?.name,
-          deadline: task.deadline,
-        });
+        const result = await decomposeTask({ apiKey: settings.geminiApiKey, title: task.title, projectName: proj?.name, deadline: task.deadline });
         task.subtasks = (result.subtasks || []).map((t, i) => ({ id: i, title: t, done: false }));
         if (result.nextAction) task.nextAction = result.nextAction;
         if (result.improvedTitle && result.improvedTitle !== task.title) {
-          if (confirm(`タイトル改善案:\n「${result.improvedTitle}」\n適用しますか？`)) {
-            task.title = result.improvedTitle;
-          }
+          if (confirm(`タイトル改善案:\n「${result.improvedTitle}」\n適用しますか？`)) task.title = result.improvedTitle;
         }
         await saveTask(task);
         tasks = tasks.map(t => t.id === task.id ? task : t);
@@ -347,7 +282,6 @@ function renderTaskItem(task) {
     });
   }
 
-  // subtask check toggle
   item.querySelectorAll('[data-subtask-check]').forEach(cb => {
     cb.addEventListener('click', async (e) => {
       e.stopPropagation();
@@ -378,23 +312,117 @@ function refItem(ref, i) {
   </li>`;
 }
 
+// ─── Task Dialog (作成・編集共通) ─────────────────
+
+function openTaskDialog(task = null) {
+  const isEdit = !!task;
+  document.getElementById('task-dialog-title').textContent = isEdit ? '✏️ タスクを編集' : '📝 タスクを登録';
+  document.getElementById('td-save').textContent = isEdit ? '保存' : '登録';
+  document.getElementById('td-id').value = task?.id || '';
+  document.getElementById('td-title').value = task?.title || '';
+  document.getElementById('td-deadline').value = task?.deadline || '';
+  document.getElementById('td-next-action').value = task?.nextAction || '';
+  document.getElementById('td-memo').value = task?.memo || '';
+  document.getElementById('td-new-project').value = '';
+
+  const provisional = task?.provisional || false;
+  document.getElementById('td-provisional-note').style.display = provisional ? 'block' : 'none';
+  document.getElementById('task-overlay').dataset.provisional = provisional ? '1' : '0';
+
+  const sel = document.getElementById('td-project');
+  sel.innerHTML = '<option value="">未分類</option>' +
+    projects.map(p => `<option value="${p.id}" ${task?.projectId === p.id ? 'selected' : ''}>${esc(p.name)}</option>`).join('');
+
+  document.getElementById('voice-wave').classList.remove('show');
+  document.getElementById('task-overlay').classList.add('open');
+}
+
+function openVoiceDialog(text) {
+  openTaskDialog(null);
+
+  document.getElementById('td-title').value = text;
+
+  const deadline = parseDeadline(text);
+  if (deadline) {
+    document.getElementById('td-deadline').value = toInputDate(deadline);
+    document.getElementById('td-provisional-note').style.display = 'none';
+    document.getElementById('task-overlay').dataset.provisional = '0';
+  }
+
+  const projName = extractProject(text);
+  if (projName) {
+    const matched = projects.find(p => p.name === projName);
+    if (matched) document.getElementById('td-project').value = matched.id;
+  }
+
+  const urls = extractUrls(text);
+  if (urls.length) document.getElementById('td-memo').value = urls.join('\n');
+}
+
+async function saveTaskDialog() {
+  const title = document.getElementById('td-title').value.trim();
+  if (!title) { showToast('タスク内容を入力してください', 'error'); return; }
+
+  const deadline = document.getElementById('td-deadline').value;
+  if (!deadline) { showToast('期限を入力してください（未定なら「未定（仮）」ボタンを押してください）', 'error'); return; }
+
+  const provisional = document.getElementById('task-overlay').dataset.provisional === '1';
+  const existingId = parseInt(document.getElementById('td-id').value) || null;
+
+  let projectId = parseInt(document.getElementById('td-project').value) || null;
+  const newProjName = document.getElementById('td-new-project').value.trim();
+  if (newProjName) {
+    const id = await saveProject({ name: newProjName });
+    projects = await getAllProjects();
+    projectId = id;
+    renderTabs();
+  }
+
+  const memo = document.getElementById('td-memo').value.trim();
+  const refs = memo ? memo.split('\n').map(s => s.trim()).filter(Boolean) : [];
+
+  const taskData = {
+    title,
+    projectId,
+    deadline,
+    provisional,
+    stage: 'todo',
+    nextAction: document.getElementById('td-next-action').value.trim(),
+    refs,
+    memo: '',
+    createdAt: new Date().toISOString(),
+  };
+
+  if (existingId) {
+    const existing = tasks.find(t => t.id === existingId);
+    Object.assign(existing, taskData, { id: existingId, stage: existing.stage, subtasks: existing.subtasks, createdAt: existing.createdAt });
+    await saveTask(existing);
+    tasks = tasks.map(t => t.id === existingId ? existing : t);
+    showToast('タスクを更新しました');
+  } else {
+    const id = await saveTask(taskData);
+    taskData.id = id;
+    tasks.push(taskData);
+    if (projectId) expandedProjects.add(projectId);
+    else expandedProjects.add(0);
+    showToast(`「${title}」を登録しました`);
+  }
+
+  document.getElementById('task-overlay').classList.remove('open');
+  renderTasks();
+}
+
 // ─── Voice ───────────────────────────────────────
 
 let recorder;
 let interimText = '';
 let finalText = '';
-let isProvisional = false;
 
 function setupVoice() {
   recorder = new VoiceRecorder({
     onResult: (text, isFinal) => {
       interimText = text;
-      const el = document.getElementById('interim-display');
-      if (el) el.textContent = text;
-      if (isFinal) {
-        finalText = text;
-        interimText = '';
-      }
+      if (isFinal) { finalText = text; interimText = ''; }
     },
     onError: (err) => {
       alert('音声認識エラー: ' + err);
@@ -415,106 +443,53 @@ function stopRecording() {
   recorder.stop();
   document.getElementById('mic-fab').classList.remove('recording');
   document.getElementById('voice-wave').classList.remove('show');
-
   const text = (finalText || interimText).trim();
   if (text) openVoiceDialog(text);
+  else openTaskDialog(null);
 }
 
-// ─── Voice dialog ─────────────────────────────────
-
-function openVoiceDialog(text) {
-  const urls = extractUrls(text);
-  const deadline = parseDeadline(text);
-  const projName = extractProject(text);
-
-  const overlay = document.getElementById('voice-overlay');
-  overlay.classList.add('open');
-
-  document.getElementById('vd-text').value = text;
-
-  const vdProj = document.getElementById('vd-project');
-  vdProj.innerHTML = '<option value="">未分類</option>' +
-    projects.map(p => `<option value="${p.id}">${esc(p.name)}</option>`).join('');
-  const matchedProj = projName ? projects.find(p => p.name === projName) : null;
-  vdProj.value = matchedProj ? matchedProj.id : '';
-
-  const deadlineInput = document.getElementById('vd-deadline');
-  const deadlineSection = document.getElementById('vd-deadline-section');
-  const undecidedSection = document.getElementById('vd-undecided-section');
-
-  // reset manual date input from previous dialog open
-  const manualDate = document.getElementById('vd-manual-date');
-  if (manualDate) { manualDate.value = ''; manualDate.style.display = 'none'; }
-
-  if (deadline) {
-    deadlineInput.value = toInputDate(deadline);
-    deadlineSection.style.display = 'block';
-    undecidedSection.style.display = 'none';
-    isProvisional = false;
-  } else {
-    deadlineInput.value = '';
-    deadlineSection.style.display = 'none';
-    undecidedSection.style.display = 'block';
-    isProvisional = true;
-    setSuggestedDeadline();
-  }
-
-  document.getElementById('vd-urls').innerHTML = urls.map(u =>
-    `<div style="font-size:13px;color:var(--primary-light);margin-bottom:4px">🔗 ${esc(u)}</div>`
-  ).join('');
-
-  window._pendingUrls = urls;
-}
-
-function setSuggestedDeadline() {
-  const days = parseInt(settings.defaultDeadlineDays || 14);
-  const d = new Date();
-  d.setDate(d.getDate() + days);
-  document.getElementById('vd-suggested').textContent =
-    `提案: ${formatDate(d)}（${days}日後）`;
-  document.getElementById('vd-suggested-date').value = toInputDate(d);
-}
-
-document.addEventListener('DOMContentLoaded', () => {
-  init().catch(console.error);
-});
+// ─── Event listeners ─────────────────────────────
 
 function setupEventListeners() {
-  // Mic FAB
+  // ＋ ボタン（手動入力）
+  document.getElementById('add-fab').addEventListener('click', () => openTaskDialog(null));
+
+  // マイクボタン
   const fab = document.getElementById('mic-fab');
   let touching = false;
-  fab.addEventListener('touchstart', () => { touching = true; startRecording(); });
-  fab.addEventListener('touchend', () => { touching = false; stopRecording(); });
+  fab.addEventListener('touchstart', (e) => { e.preventDefault(); touching = true; startRecording(); });
+  fab.addEventListener('touchend', (e) => { e.preventDefault(); touching = false; stopRecording(); });
   fab.addEventListener('click', () => {
     if (touching) return;
     if (recorder.active) stopRecording(); else startRecording();
   });
 
-  // Voice dialog
-  document.getElementById('vd-use-suggested').addEventListener('click', () => {
-    const date = document.getElementById('vd-suggested-date').value;
-    document.getElementById('vd-deadline').value = date;
-    document.getElementById('vd-deadline-section').style.display = 'block';
-    document.getElementById('vd-undecided-section').style.display = 'none';
-    isProvisional = true;
+  // タスクダイアログ
+  document.getElementById('td-save').addEventListener('click', saveTaskDialog);
+  document.getElementById('td-cancel').addEventListener('click', () => {
+    document.getElementById('task-overlay').classList.remove('open');
   });
 
-  document.getElementById('vd-save').addEventListener('click', saveVoiceTask);
-  document.getElementById('vd-cancel').addEventListener('click', () => {
-    document.getElementById('voice-overlay').classList.remove('open');
+  // 未定（仮）ボタン
+  document.getElementById('td-undecided').addEventListener('click', () => {
+    const days = parseInt(settings.defaultDeadlineDays || 14);
+    const d = new Date();
+    d.setDate(d.getDate() + days);
+    document.getElementById('td-deadline').value = toInputDate(d);
+    document.getElementById('td-provisional-note').style.display = 'block';
+    document.getElementById('task-overlay').dataset.provisional = '1';
   });
 
-  // Edit dialog
-  document.getElementById('ed-save').addEventListener('click', saveEditTask);
-  document.getElementById('ed-cancel').addEventListener('click', () => {
-    document.getElementById('edit-overlay').classList.remove('open');
+  // 期限を手動で変えたら仮フラグを解除
+  document.getElementById('td-deadline').addEventListener('change', () => {
+    document.getElementById('td-provisional-note').style.display = 'none';
+    document.getElementById('task-overlay').dataset.provisional = '0';
   });
 
-  // Settings
+  // 設定
   document.getElementById('btn-settings').addEventListener('click', () => {
     document.getElementById('task-view').style.display = 'none';
-    const ss = document.getElementById('settings-screen');
-    ss.classList.add('show');
+    document.getElementById('settings-screen').classList.add('show');
     document.getElementById('settings-email').value = settings.email || '';
     document.getElementById('settings-days').value = settings.defaultDeadlineDays || 14;
     document.getElementById('settings-gemini-key').value = settings.geminiApiKey || '';
@@ -528,7 +503,7 @@ function setupEventListeners() {
     });
     document.getElementById('settings-screen').classList.remove('show');
     document.getElementById('task-view').style.display = '';
-    alert('設定を保存しました');
+    showToast('設定を保存しました');
   });
 
   document.getElementById('settings-back').addEventListener('click', () => {
@@ -536,118 +511,31 @@ function setupEventListeners() {
     document.getElementById('task-view').style.display = '';
   });
 
-  // Export
+  // エクスポート
   document.getElementById('btn-export').addEventListener('click', async () => {
     const json = await exportData();
-    const blob = new Blob([json], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
-    a.href = url;
+    a.href = URL.createObjectURL(new Blob([json], { type: 'application/json' }));
     a.download = `tasks-${toInputDate(new Date())}.json`;
     a.click();
-    URL.revokeObjectURL(url);
   });
 
-  // Email
+  // メール
   document.getElementById('btn-email').addEventListener('click', sendEmail);
 
-  // Import
-  document.getElementById('settings-import-btn').addEventListener('click', () => {
-    document.getElementById('import-file').click();
-  });
+  // インポート
+  document.getElementById('settings-import-btn').addEventListener('click', () => document.getElementById('import-file').click());
   document.getElementById('import-file').addEventListener('change', async (e) => {
     const file = e.target.files[0];
     if (!file) return;
-    const text = await file.text();
     try {
-      await importData(text);
+      await importData(await file.text());
       [projects, tasks] = await Promise.all([getAllProjects(), getAllTasks()]);
-      renderTabs();
-      renderTasks();
-      alert('インポートしました');
-    } catch {
-      alert('インポートに失敗しました。ファイルを確認してください。');
-    }
+      renderTabs(); renderTasks();
+      showToast('インポートしました');
+    } catch { alert('インポートに失敗しました'); }
     e.target.value = '';
   });
-}
-
-// ─── Save from voice dialog ───────────────────────
-
-async function saveVoiceTask() {
-  const title = document.getElementById('vd-text').value.trim();
-  if (!title) { alert('タスク名を入力してください'); return; }
-
-  const deadlineVal = document.getElementById('vd-deadline').value;
-  if (!deadlineVal) { alert('期限を設定してください'); return; }
-
-  let projectId = parseInt(document.getElementById('vd-project').value) || null;
-  const newProjName = document.getElementById('vd-new-project').value.trim();
-
-  if (newProjName) {
-    const id = await saveProject({ name: newProjName });
-    projects = await getAllProjects();
-    projectId = id;
-    renderTabs();
-  }
-
-  const task = {
-    title,
-    projectId,
-    deadline: deadlineVal,
-    provisional: isProvisional,
-    stage: 'todo',
-    refs: [...(window._pendingUrls || [])],
-    nextAction: '',
-    memo: '',
-    createdAt: new Date().toISOString(),
-  };
-
-  const id = await saveTask(task);
-  task.id = id;
-  tasks.push(task);
-
-  if (projectId) expandedProjects.add(projectId);
-  else expandedProjects.add(null); // 未分類も展開
-
-  renderTasks();
-  document.getElementById('voice-overlay').classList.remove('open');
-  showToast(`「${title}」を登録しました`);
-}
-
-// ─── Edit dialog ─────────────────────────────────
-
-function openEditDialog(task) {
-  document.getElementById('edit-overlay').classList.add('open');
-  document.getElementById('ed-id').value = task.id;
-  document.getElementById('ed-title').value = task.title;
-  document.getElementById('ed-deadline').value = task.deadline || '';
-  document.getElementById('ed-next-action').value = task.nextAction || '';
-  document.getElementById('ed-memo').value = task.memo || '';
-
-  const sel = document.getElementById('ed-project');
-  sel.innerHTML = '<option value="">未分類</option>' +
-    projects.map(p => `<option value="${p.id}" ${task.projectId === p.id ? 'selected' : ''}>${esc(p.name)}</option>`).join('');
-}
-
-async function saveEditTask() {
-  const id = parseInt(document.getElementById('ed-id').value);
-  const task = tasks.find(t => t.id === id);
-  if (!task) return;
-
-  task.title = document.getElementById('ed-title').value.trim();
-  task.deadline = document.getElementById('ed-deadline').value;
-  task.nextAction = document.getElementById('ed-next-action').value.trim();
-  task.memo = document.getElementById('ed-memo').value.trim();
-  task.projectId = parseInt(document.getElementById('ed-project').value) || null;
-
-  if (!task.title) { alert('タスク名を入力してください'); return; }
-  if (!task.deadline) { alert('期限を設定してください'); return; }
-
-  await saveTask(task);
-  tasks = tasks.map(t => t.id === id ? task : t);
-  renderTasks();
-  document.getElementById('edit-overlay').classList.remove('open');
 }
 
 // ─── Email ───────────────────────────────────────
@@ -655,8 +543,6 @@ async function saveEditTask() {
 function sendEmail() {
   const to = settings.email || '';
   const today = formatDate(new Date());
-  const subject = encodeURIComponent(`【タスク一覧】${today}`);
-
   let body = `タスク一覧 (${today})\n\n`;
 
   for (const proj of projects) {
@@ -665,12 +551,9 @@ function sendEmail() {
     body += `■ ${proj.name}\n`;
     for (const t of pt) {
       const stage = STAGES.find(s => s.key === (t.stage || 'todo')).label;
-      const deadline = t.deadline ? `〆${formatDate(new Date(t.deadline))}` : '';
-      const prov = t.provisional ? '(仮)' : '';
-      body += `  ・${t.title} [${stage}] ${deadline}${prov}\n`;
+      body += `  ・${t.title} [${stage}]${t.deadline ? ' 〆' + formatDate(new Date(t.deadline)) : ''}${t.provisional ? '(仮)' : ''}\n`;
       if (t.nextAction) body += `    → ${t.nextAction}\n`;
       for (const r of (t.refs || [])) body += `    📎 ${r}\n`;
-      if (t.memo) body += `    📝 ${t.memo}\n`;
     }
     body += '\n';
   }
@@ -678,23 +561,16 @@ function sendEmail() {
   const orphans = tasks.filter(t => !t.projectId && t.stage !== 'done');
   if (orphans.length) {
     body += '■ 未分類\n';
-    for (const t of orphans) {
-      const stage = STAGES.find(s => s.key === (t.stage || 'todo')).label;
-      body += `  ・${t.title} [${stage}]\n`;
-    }
+    for (const t of orphans) body += `  ・${t.title}\n`;
   }
 
-  window.location.href = `mailto:${to}?subject=${subject}&body=${encodeURIComponent(body)}`;
+  window.location.href = `mailto:${to}?subject=${encodeURIComponent(`【タスク一覧】${today}`)}&body=${encodeURIComponent(body)}`;
 }
 
 // ─── Helpers ─────────────────────────────────────
 
 function esc(str) {
-  return String(str || '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
+  return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
 function formatDate(d) {
@@ -705,16 +581,17 @@ function toInputDate(d) {
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 }
 
-function showToast(msg) {
+function showToast(msg, type = 'success') {
   const t = document.createElement('div');
   t.textContent = msg;
   Object.assign(t.style, {
-    position: 'fixed', bottom: '100px', left: '50%', transform: 'translateX(-50%)',
-    background: '#10b981', color: '#fff', padding: '10px 20px',
-    borderRadius: '999px', fontSize: '14px', fontWeight: '600',
-    zIndex: '9999', whiteSpace: 'nowrap', boxShadow: '0 4px 12px rgba(0,0,0,.3)',
-    transition: 'opacity .4s',
+    position: 'fixed', bottom: '110px', left: '50%', transform: 'translateX(-50%)',
+    background: type === 'error' ? '#ef4444' : '#10b981',
+    color: '#fff', padding: '10px 20px', borderRadius: '999px',
+    fontSize: '14px', fontWeight: '600', zIndex: '9999',
+    whiteSpace: 'nowrap', boxShadow: '0 4px 12px rgba(0,0,0,.3)',
+    maxWidth: '90vw', textAlign: 'center', transition: 'opacity .4s',
   });
   document.body.appendChild(t);
-  setTimeout(() => { t.style.opacity = '0'; setTimeout(() => t.remove(), 400); }, 2000);
+  setTimeout(() => { t.style.opacity = '0'; setTimeout(() => t.remove(), 400); }, 2500);
 }
